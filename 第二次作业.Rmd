@@ -1,0 +1,717 @@
+---
+title: "第二次作业"
+author: "雷婷"
+documentclass: ctexart
+geometry: "left=2.5cm,right=2cm,top=3cm,bottom=2.5cm"
+output: 
+  pdf_document:
+    fig_caption: yes
+    latex_engine: xelatex
+    number_sections: yes
+    toc: yes
+---
+
+
+```{r}
+knitr::opts_chunk$set(
+  message = FALSE,
+  warning = FALSE,
+  error = FALSE,
+  out.width = "100%", 
+  fig.showtext = TRUE,
+  fig.align = "center",
+  comment = "#>",
+  df_print = "tibble",
+  paged.print = FALSE,
+  split = FALSE
+)
+
+library(showtext)
+#library(showtextdb)
+showtext_auto()
+
+# 添加微软雅黑字体
+font_add("Microsoft YaHei", "C:/Windows/Fonts/msyh.ttc")
+
+```
+
+```{r message=FALSE, warning=FALSE}
+# setwd(choose.dir())
+library(tidyverse)
+```
+
+# Q1：BigBangTheory 的（附数据：BigBangTheory）
+
+The Big Bang Theory, a situation comedy featuring Johnny Galecki, Jim Parsons, and Kaley Cuoco-Sweeting, is one of the most-watched programs on network television. The first two episodes for the 2011–2012 season premiered on September 22, 2011; the first episode attracted 14.1 million viewers and the second episode attracted 14.7 million viewers. The attached data file BigBangTheory shows the number of viewers in millions for the first 21 episodes of the 2011–2012 season (the Big Bang theory website, April 17, 2012).
+
+#解答前的准备工作
+```{r}
+#导入数据,以逗号作为分隔符，并对列进行命名 
+bbt<-read_csv("BigBangTheory.csv") %>% 
+  rename(air_date = `Air Date`,viewers = `Viewers (millions)`) %>% 
+  mutate(air_date = mdy(air_date))
+
+```
+
+# Q1 a. Compute the minimum and the maximum number of viewers.
+```{r}
+min(bbt$viewers)
+max(bbt$viewers)
+```
+
+# Q1 b. Compute the mean, median, and mode.
+```{r}
+mean(bbt$viewers)
+median(bbt$viewers)
+#就一个众数时，可用此法，即计数向量次数，找到最大的以后，返回行名
+modes <- names(which.max(table(bbt$viewers)))
+
+#以下适合多个众数时
+#table 函数对 data 向量进行计数。table 函数会统计 data 中每个不同元素出现的次数，并返回一个表格形式的结果，其中每个唯一的元素作为表格的行名，对应的出现次数作为表格的值。
+counts <- table(bbt$viewers)
+#找到 counts 表格中的最大值，也就是数据中出现次数最多的值的出现次数。
+max_count <- max(counts)
+#首先使用 counts == max_count 生成一个逻辑向量，该向量指示 counts 中哪些元素等于最大出现次数。然后 which 函数返回这个逻辑向量中为 TRUE 的元素的索引。最后，names(counts)[...] 根据这些索引从 counts 的行名（即 data 中的唯一元素）中提取出出现次数等于最大出现次数的元素，这些元素就是众数。
+modes <- names(counts)[which(counts == max_count)]
+modes
+
+```
+
+# Q1 c. Compute the first and third quartiles.
+```{r}
+# Quantile计算分位数， probs = c(分位数)
+quartiles <- quantile(bbt$viewers, probs = c(0.25,0.75))
+quartiles
+
+```
+
+
+# Q1 d. has viewership grown or declined over the 2011–2012 season? Discuss.
+回答：收视率在下降
+观测方式一：线图看数据波动情况，发现有起伏，不利于直观得出结论
+观测方式二：计算每周较上周收视率的差值，统计后发现7次为正，12次为负，说明整体呈下降
+观测方式三：使用线性回归模型来拟合收视率与日期数值之间的关系，计算出来后的线性斜率为负，说明呈下降趋势
+综上得出收视率在下降的结论
+
+library(ggplot2)
+library(lubridate)
+
+```{r}
+ggplot(data = bbt, aes(x = air_date , y = viewers)) +
+  geom_line()+
+  geom_point()+
+#x轴的间隔=实际数据值
+  scale_x_date(breaks = bbt$air_date)+
+#调整x轴间距
+  theme(axis.text.x = element_text(angle = 90))
+  # scale_x_date(date_breaks = "1 month")
+
+```
+
+
+```{r}
+#给数据表增加序列号
+bbt <- bbt[order(bbt$air_date), ]
+#创建一个新的列diff，用于存储相邻日期收视率的差值
+bbt$diff <- c(NA, diff(bbt$viewers))
+#统计差值的正负情况。如果正差值的数量多于负差值，可能说明收视率总体上在增长；反之则可能在下降。
+diff_zheng <- sum(bbt$diff > 0, na.rm = TRUE)
+diff_fu <- sum(bbt$diff < 0, na.rm = TRUE)
+diff_zheng
+diff_fu
+
+```
+
+```{r}
+#将日期转换为数值格式，例如可以使用 as.numeric 函数将日期转换为自某个起始日期以来的天数。假设日期存储在变量 dates 中，可以这样转换：
+dates_num <- as.numeric(bbt$air_date)
+#使用线性回归模型来拟合收视率与日期数值之间的关系。在 R 中，可以使用 lm 函数进行线性回归，例如
+model <- lm(viewers ~ dates_num, data = bbt)
+model 
+
+```
+
+# Question 2: NBAPlayerPts. (Attached Data: NBAPlayerPts)
+
+CbSSports.com developed the Total Player Rating system to rate players in the National Basketball Association (NBA) based on various offensive and defensive statistics. The attached data file NBAPlayerPts shows the average number of points scored per game (PPG) for 50 players with the highest ratings for a portion of the 2012–2013 NBA season (CbSSports.com website, February 25, 2013). Use classes starting at 10 and ending at 30 in increments of 2 for PPG in the following.
+
+```{r}
+#读取文件
+nba<-read.csv2("NBAPlayerPts.csv",sep = ",")
+
+#将ppg转换为数值型，便于后续分析
+nba$PPG <- as.numeric(nba$PPG)
+
+# PPG 使用从 10 开始到 30 结束的类，增量为 2
+# 创建数据框
+nba <- data.frame(
+  Rank = c(nba$Rank),
+  Player = c(nba$Player),
+  PPG = c(nba$PPG)
+)
+# 使用 cut 函数进行分类并添加为新列
+nba$PPG_category <- cut(nba$PPG, breaks = seq(10, 30, by = 2))
+# 查看处理后的数据
+nba
+
+```
+
+# Q2 a. Show the frequency distribution.
+
+```{r}
+table(nba$PPG_category)
+
+```
+
+```{r}
+#直方图
+nba_ppg <- c(nba$PPG)
+#main = "图名", xlab = "x轴名", ylab = "y轴名")
+hist(nba_ppg, main = "Frequency Histogram", xlab = "Value", ylab = "Frequency")
+
+```
+
+# Q2 b. Show the relative frequency distribution.
+
+```{r}
+freq_table <- table(nba$PPG_category)
+#用频率表中的数字/总长度就是相对频率
+relative_freq <- freq_table / length(nba$PPG_category)
+relative_freq
+```
+
+
+```{r}
+nba_ppg <- c(nba$PPG)
+#freq = FALSE 代表相对分布
+hist(nba_ppg, freq = FALSE, main = "Relative Frequency Histogram", xlab = "Value", ylab = "Relative Frequency")
+```
+
+# Q2 c. Show the cumulative percent frequency distribution.
+
+```{r}
+#先计算频率
+freq_table <- table(nba$PPG_category)
+#再用频率表中的数字/总长度就是相对频率
+relative_freq <- freq_table / length(nba$PPG_category)
+#再将相对频率相加获得累计频率
+cumulative_freq <- cumsum(relative_freq)
+cumulative_freq
+```
+
+
+```{r}
+#创建包含数据点的向量
+nba_ppg <- c(nba$PPG)
+#使用hist函数创建一个直方图对象，但设置plot = FALSE以避免立即绘制直方图。这个直方图对象包含了关于数据分布的信息，如区间划分（breaks）、每个区间的频数（counts）等
+nba_hist <- hist(nba_ppg,plot = FALSE)
+#使用cumsum函数计算直方图中每个区间频数的累积和。这将得到一个向量，表示小于或等于每个区间上限的数据点的总数。
+cumulative_frequency <- cumsum(nba_hist$counts)
+#将累积频数转换为累积频率百分比。首先将累积频数除以数据向量的总频数（通过sum(hist_data$counts)计算得到），得到累积频率，然后乘以 100 转换为百分比
+cumulative_percentage <- cumulative_frequency / sum(nba_hist$counts) * 100
+#使用barplot函数绘制累积频率百分比的柱状图。cumulative_percentage作为纵坐标，names.arg设置横坐标为直方图区间的中点（通过hist_data$mids获取）。设置图形的标题、x 轴和 y 轴标签与方法一类似，以显示累积频率百分比分布
+barplot(cumulative_percentage, names.arg = nba_hist$mids, main = "Cumulative Frequency Percentage Distribution", xlab = "Value", ylab = "Cumulative Frequency Percentage")
+
+```
+
+# Q2 d. Develop a histogram for the average number of points scored per game.
+```{r}
+hist(nba$PPG)
+  
+```
+
+# Q2 e. Do the data appear to be skewed? Explain.
+偏度是描述数据分布不对称程度的统计量。如果偏度为0，表示数据分布是对称的；如果偏度大于 0，表示数据分布有正偏态（右侧长尾）；如果偏度小于0，表示数据分布有负偏态（左侧长尾）。
+```{r}
+e1071::skewness(nba$PPG)
+#结果＞0，右偏
+```
+
+
+Q2 f. What percentage of the players averaged at least 20 points per game?
+
+```{r}
+nba_hight <- sum(nba$PPG>20)/length(nba$PPG)
+nba_hight 
+```
+
+# Question 3: A researcher reports survey results by stating that the standard error of the mean is 20. The population standard deviation is 500.
+
+Q3 a. How large was the sample used in this survey?
+
+```{r}
+#标准误差（Standard Error，SE）的计算公式为：S^2=σ^2/n，其中是σ总体标准差，n是样本量。
+#n=σ^2/s^2
+n <- 500^2/20^2
+n
+
+```
+
+# Q3 b. What is the probability that the point estimate was within ±25 of the population mean?
+
+```{r}
+#pnorm函数是 R 中用于计算标准正态分布的累积分布函数值的函数
+#20是此题的标准误差
+pnorm(25/20) - pnorm(-25/20)
+
+```
+
+# Question #4: Young Professional Magazine (Attached Data: Professional)
+Young Professional magazine was developed for a target audience of recent college graduates who are in their first 10 years in a business/professional career. In its two years of publication, the magazine has been fairly successful. Now the publisher is interested in expanding the magazine’s advertising base. Potential advertisers continually ask about the demographics and interests of subscribers to young Professionals. To collect this information, the magazine commissioned a survey to develop a profile of its subscribers. The survey results will be used to help the magazine choose articles of interest and provide advertisers with a profile of subscribers. As a new employee of the magazine, you have been asked to help analyze the survey results.
+Some of the survey questions follow:
+1.What is your age?
+2.Are you: Male_________ Female___________
+3.Do you plan to make any real estate purchases in the next two years?
+Yes______ No______
+4.What is the approximate total value of financial investments, exclusive of your
+home, owned by you or members of your household?
+5.How many stock/bond/mutual fund transactions have you made in the past year?
+6.Do you have broadband access to the Internet at home? Yes______ No______
+7.Please indicate your total household income last year. ___________
+8.Do you have children? Yes______ No______
+The file entitled Professional contains the responses to these questions.
+Managerial Report:
+Prepare a managerial report summarizing the results of the survey. In addition to statistical summaries, discuss how the magazine might use these results to attract advertisers. You might also comment on how the survey results could be used by the magazine’s editors to identify topics that would be of interest to readers. Your report should address the following issues, but do not limit your analysis to just these areas.
+
+# Q4 a. Develop appropriate descriptive statistics to summarize the data.
+```{r}
+pro <- read.csv2("Professional.csv",sep = ",")
+column_names <- names(pro)
+#文件中有空值占据列，仅留有效数据列
+pro <- pro[,1:8]
+# 遍历每一列，并用na.strings="NA"指定了将字符NA（注意这里是字符NA，不是缺失值NA的概念）当作缺失值来处理
+for (col_name in column_names) {
+  if (is.character(pro[[col_name]])) {
+    pro[[col_name]] <- as.factor(pro[[col_name]])
+  }
+}
+summary(pro)
+
+```
+
+# Q4 b. Develop 95% confidence intervals for the mean age and household income of subscribers.
+```{r}
+#方式一：公式计算
+#求均值
+a <- mean(pro$Age)
+#下限样本均值+Z（α/2）*标准差/根号n，qnorm("比例")比例即面积只能是正
+b <- a + qnorm(0.025)*sd(pro$Age)/sqrt(length(pro$Age))
+#上限样本均值-Z（α/2）*标准差/根号n
+c <- a - qnorm(0.025)*sd(pro$Age)/sqrt(length(pro$Age))
+age_an <- c(b,c)
+age_an
+#方案二：函数计算
+#[[4]]表示取计算出来的第四项数据
+t.test(pro$Household.Income....)[[4]]
+
+```
+
+# Q4 c. Develop 95% confidence intervals for the proportion of subscribers who have broadband access at home and the proportion of subscribers who have children.
+```{r}
+#sum可以对逻辑值计数求和，length仅可对数值求和
+br_p <- sum(pro$Broadband.Access.== "Yes")/length(pro$Broadband.Access.)
+p1 <- br_p + qnorm(0.025)*sqrt(br_p*(1-br_p)/length(pro$Broadband.Access.))
+p2 <- br_p - qnorm(0.025)*sqrt(br_p*(1-br_p)/length(pro$Broadband.Access.))
+cp <- c(p1,p2)
+cp
+
+br_c <- sum(pro$Have.Children.== "Yes")/length(pro$Have.Children.)
+c1 <- br_c + qnorm(0.025)*sqrt(br_c*(1-br_c)/length(pro$Have.Children.))
+c2 <- br_c - qnorm(0.025)*sqrt(br_c*(1-br_c)/length(pro$Have.Children.))
+cc <- c(c1,c2)
+cc
+
+```
+
+# Q4 d. Would Young Professional be a good advertising outlet for online brokers? Justify your conclusion with statistical data.
+回答：适合。原因：样本中62.4%的人有网，具备网络交易基本物质条件。样本中62.7%的家庭投资金额占家庭收入30%以上，样本中一半的人一年交易在6次及以上，具备投资交易习惯，属于网络交易高潜用户。
+```{r}
+#有网络人数占比
+br_p
+#投资交易数据
+mean(pro$Number.of.Transactions)
+median(pro$Number.of.Transactions)
+#金融投资占收入的占比数据
+touzi <- (pro$Value.of.Investments..../pro$Household.Income....)*100
+touzi_p <- sum(touzi>30)/length(touzi)
+touzi_p
+pro_touzi <- cbind(pro,touzi=touzi)
+ggplot(pro_touzi,aes(x=pro_touzi$touzi))+
+  geom_histogram()+
+#调节x轴间隔
+   scale_x_continuous(breaks = seq(min(pro_touzi$touzi), max(pro_touzi$touzi), by = 10))
+```
+
+# Q4 e. Would this magazine be a good place to advertise for companies selling educational software and computer games for young children?
+回答：适合。原因：样本中53.4%的家庭是有小孩的，且样本人员年龄平均在30，半数在30岁以下，即大部分是有小孩且父母年轻的家庭，是小孩教育与游戏的受众人群。
+```{r}
+#有孩家庭占比
+chi_pr <- sum(pro$Have.Children.=="Yes")/length(pro$Have.Children.)
+chi_pr
+#样本人员年龄分布
+mean(pro$Age)
+median(pro$Age)
+ggplot(pro,aes(x=pro$Age))+
+  geom_histogram()+
+   scale_x_continuous(breaks = seq(min(pro$Age), max(pro$Age), by = 5))
+
+```
+
+# Q4 f. Comment on the types of articles you believe would be of interest to readers of Young Professional.
+回答：根据数据样本摘要发现样本具有这样几个特征：1、采样人群年龄偏年轻，集中在30岁左右；2、62%的人有互联网；3、53%的人家里有小孩；4、半数人投资金额占家庭收入36%及以上，且半数人一年内投资交易次数在6次及以上；结合1、2条猜测一些新奇、猎奇、科技相关的客户尝试推荐；结合1、2、3条推测家庭教育相关他们会比较感兴趣；结合1、2、4条数据推测投资理财相关可以尝试。
+```{r}
+summary(pro_touzi)
+
+```
+
+# Question #5: Quality Associate, Inc. (Attached Data: Quality)
+Quality associates, inc., a consulting firm, advises its clients about sampling and statistical procedures that can be used to control their manufacturing processes. in one particular application, a client gave Quality associates a sample of 800 observations taken during a time in which that client’s process was operating satisfactorily. the sample standard deviation for these data was .21; hence, with so much data, the population standard deviation was assumed to be .21. Quality associates then suggested that random samples of size 30 be taken periodically to monitor the process on an ongoing basis. by analyzing the new samples, the client could quickly learn whether the process was operating satisfactorily. when the process was not operating satisfactorily, corrective action could be taken to eliminate the problem. the design specification indicated the mean for the process should be 12. the hypothesis test suggested by Quality associates follows.
+H0:μ=12 H1:μ≠12
+Corrective action will be taken any time 
+H0 is rejected.
+Data are available in the data set Quality.
+
+读取文件
+```{r}
+qua <- read.csv("Quality.csv")
+
+```
+
+# Q5 a. Conduct a hypothesis test for each sample at the .01 level of significance and determine what action, if any, should be taken. Provide the p-value for each test.
+
+sample.3拒绝H0，其他几个都是接受H0
+
+```{r}
+#双边检测所以*2
+p1 <- 2*pnorm((mean(qua$Sample.1)-12)/(0.21/sqrt(30)))
+p2 <- 2*(1-pnorm((mean(qua$Sample.2)-12)/(0.21/sqrt(30))))
+p3 <- 2*pnorm((mean(qua$Sample.3)-12)/(0.21/sqrt(30)))
+p4 <- 2*(1-pnorm((mean(qua$Sample.4)-12)/(0.21/sqrt(30))))
+p1
+p2
+p3
+p4
+
+
+```
+
+# Q5 b. compute the standard deviation for each of the four samples. does the assumption of .21 for the population standard deviation appear reasonable?
+
+
+回答：我觉得0.21的标准差不是很合理，因为按0.21的标准差算出来的置信区间是11.91081-12.08919，但是通过直方图简单对比所有抽样的结果发现，高重合区域在11.75-12.25，比以sd=0.21算出来的区间要大。建议可以增大到0.59
+```{r}
+#赋值向量
+vactors <- list(sd_1=qua$Sample.1,
+                sd_2=qua$Sample.2,
+                sd_3=qua$Sample.3,
+                sd_4=qua$Sample.4)
+#对每个向量进行标准差计算，sapply（计算向量名称，计算的步骤）
+sds <- sapply(vactors,sd)
+sds
+
+#0.01时的置信区间
+c1 <-12+qnorm(0.01)*(0.21/sqrt(30))
+c2 <-12-qnorm(0.01)*(0.21/sqrt(30))
+z <-c(c1,c2)
+z
+
+df <- data.frame(
+  s1 = qua$Sample.1,
+  s2 = qua$Sample.2,
+  s3 = qua$Sample.3,
+  s4 = qua$Sample.4
+)
+
+ggplot(df, aes(x = s1, fill = "S1")) +
+  geom_histogram(bins = 10, alpha = 0.3) +  # 绘制第一组数据的直方图
+  geom_histogram(aes(x = s2, fill = "S2"), bins = 10, alpha = 0.3) +  # 第二组数据
+  geom_histogram(aes(x = s3, fill = "S3"), bins = 10, alpha = 0.3) +  # 第三组数据
+  geom_histogram(aes(x = s4, fill = "S4"), bins = 10, alpha = 0.3) +  # 第四组数据
+  scale_fill_manual(values = c("S1" = "red", "S2" = "blue", "S3" = "green", "S4" = "yellow")) +  # 指定颜色
+  labs(title = "Histogram of Four Sample", x = "Value", y = "Frequency") +
+  theme_minimal()  # 使用简洁的主题
+
+sd_suggest <- 0.25*sqrt(30)/qnorm(0.01)
+sd_suggest 
+c3 <-12+qnorm(0.01)*(0.59/sqrt(30))
+c4 <-12-qnorm(0.01)*(0.59/sqrt(30))
+z2 <-c(c3,c4)
+z2
+```
+
+# Q5 c. compute limits for the sample mean ―x around μ=12 such that, as long as a new sample mean is within those limits, the process will be considered to be operating satisfactorily. if ―x exceeds the upper limit or if ―x is below the lower limit, corrective action will be taken. these limits are referred to as upper and lower control limits for quality control purposes.
+
+```{r}
+#0.01时的置信区间
+c1 <-12+qnorm(0.01)*(0.21/sqrt(30))
+c2 <-12-qnorm(0.01)*(0.21/sqrt(30))
+z <-c(c1,c2)
+z
+
+```
+
+
+
+# Q5 d. discuss the implications of changing the level of significance to a larger value. what mistake or error could increase if the level of significance is increased?
+回答：其他变量不变的情况下，置信水平增加，置信区间变窄，那么第一类错误α错误增加
+
+```{r}
+#0.01时的置信区间
+c1 <-12+qnorm(0.01)*(0.21/sqrt(30))
+c2 <-12-qnorm(0.01)*(0.21/sqrt(30))
+z <-c(c1,c2)
+z
+
+#0.05时的置信区间
+c5 <-12+qnorm(0.1)*(0.21/sqrt(30))
+c6 <-12-qnorm(0.1)*(0.21/sqrt(30))
+z3 <-c(c5,c6)
+z3
+
+
+```
+
+# Question 6: Vacation occupancy rates were expected to be up during March 2008 in Myrtle Beach, South Carolina (the sun news, February 29, 2008). Data in the file Occupancy (Attached file Occupancy) will allow you to replicate the findings presented in the newspaper. The data show units rented and not rented for a random sample of vacation properties during the first week of March 2007 and March 2008.
+
+准备工作读取数据
+```{r}
+# 读取CSV文件,skip=1表示跳过第一行
+occ<- read.csv("Occupancy.csv", skip = 1, header = TRUE, stringsAsFactors = TRUE)
+```
+
+# Q6 a. Estimate the proportion of units rented during the first week of March 2007 and the first week of March 2008.
+
+```{r}
+summary(occ)
+
+p_7 <- 70/(70+130)
+p_7
+
+p_8 <- 70/(70+80)
+p_8
+
+```
+
+
+
+# Q6 b. Provide a 95% confidence interval for the difference in proportions.
+双样本t检验 
+```{r}
+bw <- qnorm(0.025)*sqrt(p_7*(1-p_7)/(130+70)+p_8*(1-p_8)/(80+70))
+bw
+qujian <- c(p_7-p_8+bw,p_7-p_8-bw)
+qujian
+
+```
+
+
+# Q6 c. On the basis of your findings, does it appear March rental rates for 2008 will be up
+
+from those a year earlier?
+回答：租金应该不会上涨，一方面是看似入住率增长了，但是入住率增长的原因是因为房屋少了，分母少了，其实分子式没变的，都是70个入住；令一方面，假设07和08年入住率在0.05水平下有显著差异，计算对应p值为0对07年和08年的入住率做对比发现p值=0.0137并不显著
+```{r}
+occ$March.2007 <- ifelse(occ$March.2007 == "Yes", 1, 0)
+occ$March.2008<- ifelse(occ$March.2008 == "Yes", 1, 0)
+head(occ)
+
+a <- (p_7-p_8)/sqrt((p_7*(1-p_7)/200)+(p_8*(1-p_8)/150))
+pnorm(a)
+
+```
+
+# Question 7: Air Force Training Program (data file: Training)
+
+An air force introductory course in electronics uses a personalized system of instruction whereby each student views a videotaped lecture and then is given a programmed instruc-tion text. the students work independently with the text until they have completed the training and passed a test. Of concern is the varying pace at which the students complete this portion of their training program. Some students are able to cover the programmed instruction text relatively quickly, whereas other students work much longer with the text and require additional time to complete the course. The fast students wait until the slow students complete the introductory course before the entire group proceeds together with other aspects of their training.
+
+A proposed alternative system involves use of computer-assisted instruction. In this method, all students view the same videotaped lecture and then each is assigned to a computer terminal for further instruction. The computer guides the student, working independently, through the self-training portion of the course.
+
+To compare the proposed and current methods of instruction, an entering class of 122 students was assigned randomly to one of the two methods. one group of 61 students used the current programmed-text method and the other group of 61 students used the proposed computer-assisted method. The time in hours was recorded for each student in the study. Data are provided in the data set training (see Attached file).
+准备工作，导入数据
+```{r}
+tra <- read.csv("Training.csv")
+```
+
+# Q7 a. use appropriate descriptive statistics to summarize the training time data for each method. what similarities or differences do you observe from the sample data?
+回答：相似之处：两者均值相似、p50相等，即两者分布对称轴相近；不同之处：Proposed的sd小于Current的，即Current的相对差异性较大，Proposed的相对分布较为平均。Proposed的p0、p25高于Current的，但p75、p100略低于Current的。
+```{r}
+skimr::skim(tra)
+```
+skim() 函数是 R 语言中 skimr包提供的一个用于数据摘要和探索性数据分析（EDA）的函数。它的目的是快速查看数据集的结构和内容，提供数据的概览，包括数据类型、缺失值、唯一的值、摘要统计量（如均值、中位数、标准差等）以及分位数等。
+skim(data：指定要分析的数据集,n_max：设置显示的最大行数,n_min：设置显示的最小行数,n：覆盖 n_max 和 n_min 的值,max_chars：设置显示的最大字符数)
+n_missing: 每个变量的缺失值数量。complete_rate:每个变量的完整率，即非缺失值的比例。完整率=1，表示没有缺失值。
+
+# Q7 b. Comment on any difference between the population means for the two methods. Discuss your findings.
+回答：p值=0.548，不显著，两者均值无显著差异。
+```{r}
+t.test(tra$Current,tra$Proposed,var.equal = TRUE)
+```
+
+# Q7 c. compute the standard deviation and variance for each training method. conduct a hypothesis test about the equality of population variances for the two training methods. Discuss your findings.
+回答：F test检验方差齐性，P值=0.00058，显著，Proposed与Current方差差异较大。
+```{r}
+list <- list(tra$Current,tra$Proposed)
+sapply(list, sd)
+sapply(list, var)
+var.test(tra$Current,tra$Proposed)
+```
+var.test 函数用于执行方差齐性检验，F-test检验方差齐性。
+sapply(列表, 计算方式)对每列执行对应计算
+
+# Q7 d. what conclusion can you reach about any differences between the two methods? what is your recommendation? explain.
+回答：虽然两者均值相等，但是Proposed的标准差和方差都小于Current的，即Current的相对差异性较大，Proposed的相对分布较为平均，且Proposed的p0、p25高于Current的，说明Proposed的方法对学生整体节省时间是有帮助的，建议采纳Proposed的方法
+
+# Q7 e. can you suggest other data or testing that might be desirable before making a final decision on the training program to be used in the future?
+回答：目前的数据对比只能看到学生学习事件上的变化，但是学习质量上的变化无从判断。最终方案确定前，建议采取也做一些学习质量方面的检测（比如考试、完成任务等等），在时间和质量上双平衡后再确定最终方案。
+
+# Question 8: The Toyota Camry is one of the best-selling cars in North America. The cost of a previously owned Camry depends upon many factors, including the model year, mileage, and condition. To investigate the relationship between the car’s mileage and the sales price for a 2007 model year Camry, Attached data file Camry show the mileage and sale price for 19 sales (Pricehub website, February 24, 2012).
+```{r}
+cam <- read.csv("Camry.csv")
+```
+
+
+# Q8 a. Develop a scatter diagram with the car mileage on the horizontal axis and the price on the vertical axis.
+```{r}
+library(ggplot2)
+ggplot(cam, aes(x = cam$Miles..1000s.,y= cam$Price...1000s.)) +
+  geom_point() +
+  geom_smooth()
+```
+
+
+
+# Q8 b. what does the scatter diagram developed in part (a) indicate about the relationship between the two variables?
+回答：根据散点及曲线图发现，随着mile的增加，price下降。
+
+# Q8 c. Develop the estimated regression equation that could be used to predict the price ($1000s) given the miles (1000s).
+lm(y ~ x1 + x2 + ... + xn, data = your_data)
+```{r}
+cam_lm <- lm(cam$Price...1000s.~ cam$Miles..1000s., data = cam)
+cam_lm
+summary(cam_lm)
+```
+
+残差（Residuals）：实际观测值与模型预测值之间的差异
+Min: -2.32408（最小残差）
+1Q: -1.34194（第一四分位数）
+Median: 0.05055（中位数）
+3Q: 1.12898（第三四分位数）
+Max: 2.52687（最大残差）
+
+回归系数（Coefficients）
+截距（Intercept）: 16.46976 当行驶里程为0时，汽车价格的预期值。
+斜率（Slope）: -0.05877 行驶里程每增加1千英里，汽车价格预计减少0.05877千美元。
+
+标准误差（Std. Error）:
+截距的标准误差为0.94876。
+斜率的标准误差为0.01319。
+
+t值（t value）:
+截距的t值为17.359。
+斜率的t值为-4.455。
+
+p值（Pr(>|t|)）:
+截距的p值为2.99e-12。
+斜率的p值为0.000348。
+这些p值远小于0.05，表明截距和斜率在统计上显著不为0。
+
+显著性代码（Signif. codes）
+*** 表示p值小于0.001，** 表示p值小于0.01，*表示p值小于0.05。在这个模型中，截距和斜率的p值都小于0.001，标记为***。
+
+模型拟合优度（Model Fit）
+残差标准误差（Residual standard error）: 1.541 表示模型预测值与实际观测值之间的平均差异。
+R平方（Multiple R-squared）: 0.5387 表示模型解释了53.87%的因变量变异。
+调整后的R平方（Adjusted R-squared）: 0.5115 调整后的R平方考虑了模型中变量的数量，提供了一个更为严格的模型拟合度量。
+F统计量（F-statistic）: 19.85用于检验模型中至少有一个系数显著不为0的统计量。
+F统计量的p值: 0.0003475远小于0.05，表明模型整体上是统计显著的。
+
+结论：这个线性回归模型表明，汽车的行驶里程和价格之间存在显著的负相关关系。模型的拟合度适中，但需要注意的是，R平方值相对较低，意味着还有相当一部分变异没有被模型解释。此外，模型的解释变量可能需要进一步扩展，以提高模型的预测能力。
+
+
+# Q8 d. Test for a significant relationship at the .05 level of significance.
+回答：截距的p值为2.99e-12，斜率的p值为0.000348，F统计量的p值0.0003475，这些p值远小于0.05，表明截距和斜率在统计上显著。
+
+# Q8 e. Did the estimated regression equation provide a good fit? Explain.
+回答：残差标准误差1.541，R方0.5115模型的拟合度适中，R平方值0.5387意味着还有相当一部分变异没有被模型解释。
+
+# Q8 f. Provide an interpretation for the slope of the estimated regression equation.
+回答：-0.05877 行驶里程每增加1千英里，汽车价格预计减少0.05877千美元。
+
+# Q8 g. Suppose that you are considering purchasing a previously owned 2007 Camry that has been driven 60,000 miles. Using the estimated regression equation developed in part (c), predict the price for this car. Is this the price you would offer the seller.
+
+```{r}
+#由c测算可得方程 Price=16.46976−0.05877*Miles
+#Miles=60000，单位换算后=60
+Price <- 16.46976-0.05877*60
+Price
+```
+
+#问题 9： 附件WE.xlsx是某提供网站服务的Internet服务商的客户数据。数据包含了6347名客户在11个指标上的表现。其中”流失“指标中0表示流失，”1“表示不流失，其他指标含义看变量命名。
+
+```{r}
+we <- readxl::read_xlsx("WE.xlsx")
+```
+
+# Q9 a. 通过可视化探索流失客户与非流失客户的行为特点（或特点对比），你能发现流失与非流失客户行为在哪些指标有可能存在显著不同？
+回答：对比流失客户与不流失客户各项行为指标均值发现似乎应该”流失“指标中0表示不流失，”1“表示流失。因为流失为0的客户例如登录次数、博客次数、访问次数等行为指标时高于流失为1的客户的，同时流失为0的客户登录间隔也更短，表明这部分客户又频繁登录的习惯，而且流失为0的客户幸福指数也是更高的。
+```{r}
+#按是否流失分类求均值
+mean_values <- we %>%
+  group_by(流失) %>%
+  summarise(across(everything(), mean, na.rm = TRUE))
+mean_values
+
+```
+
+# Q9 b. 通过均值比较的方式验证上述不同是否显著。
+回答：当月客户幸福指数、当月客户支持、当月服务优先级、当月登录次数均显著不同
+```{r}
+t_test_happiness <- t.test(当月客户幸福指数 ~ 流失, data = we)
+t_test_support <- t.test(当月客户支持 ~ 流失, data = we)
+t_test_serve <- t.test(当月服务优先级 ~ 流失, data = we)
+t_test_num <- t.test(当月登录次数 ~ 流失, data = we)
+t_test_happiness 
+t_test_support
+t_test_serve 
+t_test_num 
+```
+
+
+# Q9 c. 以”流失“为因变量，其他你认为重要的变量为自变量（提示：a、b两步的发现），建立回归方程对是否流失进行预测。
+```{r}
+we_lm <- lm(流失~ 当月客户幸福指数+当月客户支持+当月服务优先级, data = we)
+we_lm 
+summary(we_lm )
+
+#由于“流失”是二元变量（0或1），逻辑回归（logistic regression）会更准确地建模这种二分类问题。
+# 建立逻辑回归模型，以流失为因变量，当月客户幸福指数和当月客户支持为自变量
+we_glm  <- glm(流失 ~ 当月客户幸福指数 + 当月客户支持+当月服务优先级, data = we, family = binomial)
+# 打印逻辑回归模型的摘要
+summary(we_glm )
+
+```
+系数（Coefficients）:
+(Intercept): 截距项的估计值为-2.4564321，标准误差为0.0831971，z值为-29.525，p值小于2e-16，表示截距项在统计上非常显著。
+当月客户幸福指数: 系数为-0.0054455，标准误差为0.0009824，z值为-5.543，p值为2.98e-08，表示这个变量在统计上非常显著，且对数几率的变化与当月客户幸福指数的增加呈负相关，即当月客户幸福指数每增加一个单位，流失的概率降低。
+当月客户支持: 系数为-0.1116664，标准误差为0.0569560，z值为-1.961，p值为0.0499，表示这个变量在统计上显著，且对数几率的变化与当月客户支持的增加呈负相关，即当月客户支持每增加一个单位，流失的概率降低。
+
+模型拟合度（Model Fit）:
+Null deviance: 空模型（只有截距项）的偏差为2553.1，自由度为6346。
+Residual deviance: 拟合模型后的残差偏差为2501.9，自由度为6344。残差偏差的减少表明模型对数据的拟合有所改善。
+AIC: 赤池信息准则（Akaike Information Criterion）为2507.9，用于模型选择，值越小表示模型越好。
+
+# Q9 d. 根据上一步预测的结果，对尚未流失（流失=0）的客户进行流失可能性排序，并给出流失可能性最大的前100名用户ID列表。
+
+```{r}
+# 首先，使用glm()函数构建逻辑回归模型，预测流失。使用predict()函数计算每个客户的流失概率，并将结果存储在新的列流失概率中。
+we$流失概率 <- predict(glm(流失 ~ 当月客户幸福指数 + 当月客户支持 + 当月服务优先级, 
+                             family = binomial, data = we), 
+                        type = "response")
+
+# 然后，使用order()函数对流失概率进行降序排序，并选择前100名客户的ID和流失概率。
+top_100_customers <- we[order(-we$流失概率), c("客户ID", "流失概率")][1:100, ]
+
+# 输出前100名用户ID及其流失概率
+print(top_100_customers)
+
+```
+
